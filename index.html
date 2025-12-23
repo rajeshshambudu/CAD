@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DWG Alignment & Comparison</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>DWG Alignment & Comparison Viewer</h1>
+<p>Automatically converted DWG drawings</p>
+
+<div class="compare-container">
+  <div class="image-wrapper">
+    <img src="images/drawing_old.png" class="base">
+    <div class="overlay">
+      <img src="images/drawing_new.png">
+    </div>
+  </div>
+
+  <input type="range" min="0" max="100" value="50" id="slider">
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
