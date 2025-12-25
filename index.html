@@ -1,111 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Floor Plan Editor</title>
-    <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        #ui-layer { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; flex-direction: column; gap: 10px; }
-        button { padding: 10px 15px; cursor: pointer; background: #333; color: white; border: none; border-radius: 5px; }
-        button:hover { background: #555; }
-        .label { color: #333; font-weight: bold; background: rgba(255,255,255,0.7); padding: 5px; border-radius: 3px; }
-    </style>
+<meta charset="UTF-8">
+<title>Custom 3D Floor Plan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    body { margin: 0; overflow: hidden; background:#eaeaea; }
+</style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="label">Editor Mode</div>
-        <button onclick="addFurniture('chair')">Add Chair (Cube)</button>
-        <button onclick="addFurniture('table')">Add Table (Box)</button>
-        <small>Drag items to move them</small>
-    </div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.130.1/examples/js/controls/OrbitControls.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/examples/js/controls/DragControls.js"></script>
+<script>
+// SCENE
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf2f2f2);
 
-    <script>
-        // --- Setup ---
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf0f0f0);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(8, 8, 8);
+// CAMERA
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(18, 18, 18);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+// RENDERER
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-        // --- Lighting ---
-        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        dirLight.position.set(10, 20, 10);
-        scene.add(dirLight);
+// CONTROLS
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
 
-        // --- Room Essentials ---
-        const draggableObjects = [];
-        
-        // Floor
-        const floor = new THREE.Mesh(
-            new THREE.BoxGeometry(10, 0.1, 10), 
-            new THREE.MeshStandardMaterial({ color: 0xcccccc })
-        );
-        scene.add(floor);
+// LIGHTS
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+dirLight.position.set(10, 20, 10);
+scene.add(dirLight);
 
-        // Walls
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-        function createWall(w, h, d, x, y, z, r = 0) {
-            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-            wall.position.set(x, y, z);
-            wall.rotation.y = r;
-            scene.add(wall);
-        }
-        createWall(10, 3, 0.2, 0, 1.5, -5); // Back
-        createWall(0.2, 3, 10, -5, 1.5, 0); // Left
+// MATERIALS
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
 
-        // --- Furniture Function ---
-        function addFurniture(type) {
-            let geometry, color;
-            if(type === 'chair') {
-                geometry = new THREE.BoxGeometry(0.8, 1, 0.8);
-                color = 0xff5733;
-            } else {
-                geometry = new THREE.BoxGeometry(2, 0.8, 1.2);
-                color = 0x3357ff;
-            }
+// FLOOR
+const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(20, 0.2, 14),
+    floorMat
+);
+scene.add(floor);
 
-            const item = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color }));
-            item.position.set(0, 0.5, 0); // Start in middle of floor
-            scene.add(item);
-            draggableObjects.push(item);
-        }
+// WALL HELPER
+function wall(w, h, d, x, y, z, r = 0) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = r;
+    scene.add(mesh);
+}
 
-        // --- Controls ---
-        const orbit = new THREE.OrbitControls(camera, renderer.domElement);
-        
-        const drag = new THREE.DragControls(draggableObjects, camera, renderer.domElement);
+// OUTER WALLS
+wall(20, 3, 0.2, 0, 1.5, -7);
+wall(20, 3, 0.2, 0, 1.5, 7);
+wall(14, 3, 0.2, 10, 1.5, 0, Math.PI/2);
+wall(14, 3, 0.2, -10, 1.5, 0, Math.PI/2);
 
-        // Disable OrbitControls while dragging so the camera doesn't spin
-        drag.addEventListener('dragstart', () => orbit.enabled = false);
-        drag.addEventListener('dragend', () => orbit.enabled = true);
+// INNER WALLS
+// Bedroom
+wall(6, 3, 0.2, -7, 1.5, 0, Math.PI/2);
+wall(6, 3, 0.2, -4, 1.5, -4);
 
-        // Force items to stay on the floor (Y-axis lock)
-        drag.addEventListener('drag', (event) => {
-            event.object.position.y = event.object.geometry.parameters.height / 2;
-        });
+// Kitchen
+wall(6, 3, 0.2, 3, 1.5, -4);
 
-        // --- Animation ---
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
-        }
-        animate();
+// Bathroom
+wall(4, 3, 0.2, 7, 1.5, 2, Math.PI/2);
+wall(4, 3, 0.2, 5, 1.5, 4);
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+// DOOR GAPS (no wall = door)
+wall(4, 3, 0.2, -8, 1.5, 7); // front wall left
+wall(4, 3, 0.2, 8, 1.5, 7);  // front wall right
+
+// GRID
+const grid = new THREE.GridHelper(30, 30);
+scene.add(grid);
+
+// ANIMATION
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+
+// RESIZE
+window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
+</script>
+
 </body>
 </html>
+
