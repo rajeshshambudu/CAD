@@ -2,178 +2,253 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Editable 3D Floor Plan (Wall Dimensions)</title>
+<title>Full 3D Floor Plan Editor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{margin:0;overflow:hidden;font-family:Arial;background:#eee}
+body {margin:0;overflow:hidden;font-family:Arial;background:#eee}
 #panel{
  position:fixed;right:10px;top:10px;
  background:#fff;padding:12px;border-radius:8px;
- box-shadow:0 0 10px rgba(0,0,0,.3);width:260px
+ box-shadow:0 0 10px rgba(0,0,0,.3);width:280px
 }
 label{font-size:13px}
-input{width:100%}
+input,select{width:100%;margin-bottom:5px}
 button{width:100%;margin-top:5px}
 </style>
 </head>
 <body>
 
 <div id="panel">
-<b>Selected Wall Editor</b><br><br>
+<b>Wall Editor</b><br><br>
+<label>Select Wall</label>
+<select id="wallSelect"></select>
 
 <label>Length</label>
 <input type="range" id="len" min="2" max="30" step="0.5">
-
 <label>Breadth (Thickness)</label>
 <input type="range" id="br" min="0.1" max="2" step="0.1">
-
 <label>Height</label>
 <input type="range" id="ht" min="1" max="6" step="0.2">
+<label>Rotation</label>
+<input type="range" id="rot" min="0" max="360" step="1">
 
 <button onclick="topView()">Top View</button>
-<button onclick="freeView()">3D View</button>
-
-<p style="font-size:12px">
-🖱 Click wall to select<br>
-🟦 Drag to move
-</p>
+<button onclick="freeView()">3D Walk View</button>
+<hr>
+<button onclick="addWall()">Add Wall</button>
+<button onclick="deleteWall()">Delete Selected Wall</button>
+<button onclick="saveLayout()">Save Layout</button>
+<button onclick="loadLayout()">Load Layout</button>
+<p style="font-size:12px">🖱 Select & drag walls<br>⌨ WASD walk</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/examples/js/controls/OrbitControls.js"></script>
 
 <script>
-// ================= SCENE =================
+// ================= SCENE SETUP =================
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf2f2f2);
-
-// CAMERA
 const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
-camera.position.set(0,25,0);
+camera.position.set(20,20,20);
 camera.lookAt(0,0,0);
 
-// RENDERER
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// CONTROLS
 const controls = new THREE.OrbitControls(camera,renderer.domElement);
-controls.enableRotate = false;
 controls.enableDamping = true;
+controls.enableRotate = false;
 
 // LIGHT
 scene.add(new THREE.AmbientLight(0xffffff,.8));
 const sun = new THREE.DirectionalLight(0xffffff,.6);
-sun.position.set(10,20,10);
+sun.position.set(15,25,15);
 scene.add(sun);
 
 // MATERIALS
 const floorMat = new THREE.MeshStandardMaterial({color:0xdcdcdc});
-const wallMat = new THREE.MeshStandardMaterial({color:0xffffff});
+const wallMat  = new THREE.MeshStandardMaterial({color:0xffffff});
+const doorMat  = new THREE.MeshStandardMaterial({color:0x8b5a2b});
+const winMat   = new THREE.MeshStandardMaterial({color:0x87ceeb, transparent:true, opacity:.6});
+const furnMat  = new THREE.MeshStandardMaterial({color:0x999999});
 
 // FLOOR
-scene.add(new THREE.Mesh(new THREE.BoxGeometry(40,.2,30),floorMat));
+scene.add(new THREE.Mesh(new THREE.BoxGeometry(50,.2,50),floorMat));
+scene.add(new THREE.GridHelper(60,60));
 
-// GRID
-scene.add(new THREE.GridHelper(50,50));
-
-// WALL STORAGE
-const walls = [];
+// ================= WALL MANAGEMENT =================
+let walls = [];
 let selectedWall = null;
 
 // CREATE WALL
-function createWall(l,h,b,x,z,rot=0){
- const geo = new THREE.BoxGeometry(l,h,b);
- const wall = new THREE.Mesh(geo,wallMat);
- wall.position.set(x,h/2,z);
- wall.rotation.y = rot;
- scene.add(wall);
- walls.push(wall);
+function createWall(len,h,b,x=0,z=0,rot=0){
+  const geo = new THREE.BoxGeometry(len,h,b);
+  const wall = new THREE.Mesh(geo,wallMat);
+  wall.position.set(x,h/2,z);
+  wall.rotation.y = THREE.MathUtils.degToRad(rot);
+  scene.add(wall);
+  walls.push(wall);
+  updateWallSelect();
+  return wall;
 }
 
 // INITIAL WALLS
 createWall(20,3,.2,0,-10);
 createWall(20,3,.2,0,10);
-createWall(20,3,.2,10,0,Math.PI/2);
-createWall(20,3,.2,-10,0,Math.PI/2);
-createWall(6,3,.2,-6,0,Math.PI/2);
-createWall(6,3,.2,-4,-4);
-createWall(6,3,.2,3,-4);
-createWall(4,3,.2,7,2,Math.PI/2);
+createWall(20,3,.2,10,0,90);
+createWall(20,3,.2,-10,0,90);
 
-// RAYCAST
+// ================= WALL SELECT =================
+const wallSelect = document.getElementById("wallSelect");
+function updateWallSelect(){
+  wallSelect.innerHTML = "";
+  walls.forEach((w,i)=>{
+    const opt = document.createElement("option");
+    opt.value=i;
+    opt.text="Wall "+(i+1);
+    wallSelect.add(opt);
+  });
+  if(selectedWall===null && walls.length) selectedWall=walls[0];
+}
+wallSelect.addEventListener("change",()=>{
+  const idx = parseInt(wallSelect.value);
+  selectedWall = walls[idx];
+  updateSliders();
+});
+function updateSliders(){
+  if(!selectedWall) return;
+  const g = selectedWall.geometry.parameters;
+  len.value = g.width;
+  ht.value  = g.height;
+  br.value  = g.depth;
+  rot.value = THREE.MathUtils.radToDeg(selectedWall.rotation.y);
+}
+updateWallSelect();
+
+// ================= SLIDERS =================
+const len = document.getElementById("len");
+const br = document.getElementById("br");
+const ht = document.getElementById("ht");
+const rot = document.getElementById("rot");
+
+function updateWall(){
+  if(!selectedWall) return;
+  selectedWall.geometry.dispose();
+  selectedWall.geometry = new THREE.BoxGeometry(+len.value,+ht.value,+br.value);
+  selectedWall.position.y = +ht.value/2;
+  selectedWall.rotation.y = THREE.MathUtils.degToRad(+rot.value);
+}
+[len,br,ht,rot].forEach(s=>s.addEventListener("input",updateWall));
+
+// ================= ADD / DELETE WALL =================
+function addWall(){
+  const w = createWall(5,3,.2,0,0,0);
+  selectedWall = w;
+  updateSliders();
+}
+function deleteWall(){
+  if(!selectedWall) return;
+  scene.remove(selectedWall);
+  walls = walls.filter(w=>w!==selectedWall);
+  selectedWall = walls.length?walls[0]:null;
+  updateWallSelect();
+  updateSliders();
+}
+
+// ================= RAYCAST SELECT =================
 const ray = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-// SELECT WALL
-addEventListener('mousedown',e=>{
- mouse.x=(e.clientX/innerWidth)*2-1;
- mouse.y=-(e.clientY/innerHeight)*2+1;
- ray.setFromCamera(mouse,camera);
- const hit = ray.intersectObjects(walls);
- if(hit.length){
-   selectedWall = hit[0].object;
-   const g = selectedWall.geometry.parameters;
-   len.value = g.width;
-   ht.value  = g.height;
-   br.value  = g.depth;
- }
+addEventListener("mousedown",e=>{
+  mouse.x = (e.clientX/innerWidth)*2-1;
+  mouse.y = -(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(mouse,camera);
+  const hit = ray.intersectObjects(walls);
+  if(hit.length){
+    selectedWall = hit[0].object;
+    updateSliders();
+  }
 });
 
 // DRAG WALL
-addEventListener('mousemove',e=>{
- if(!selectedWall) return;
- mouse.x=(e.clientX/innerWidth)*2-1;
- mouse.y=-(e.clientY/innerHeight)*2+1;
- ray.setFromCamera(mouse,camera);
- const plane = new THREE.Plane(new THREE.Vector3(0,1,0),0);
- const pos = new THREE.Vector3();
- ray.ray.intersectPlane(plane,pos);
- selectedWall.position.x = pos.x;
- selectedWall.position.z = pos.z;
+let dragging = false;
+addEventListener("mousemove",e=>{
+  if(!dragging || !selectedWall) return;
+  mouse.x = (e.clientX/innerWidth)*2-1;
+  mouse.y = -(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(mouse,camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0,1,0),0);
+  const point = new THREE.Vector3();
+  ray.ray.intersectPlane(plane,point);
+  selectedWall.position.x = point.x;
+  selectedWall.position.z = point.z;
 });
-addEventListener('mouseup',()=>selectedWall=null);
+addEventListener("mousedown",()=>dragging=true);
+addEventListener("mouseup",()=>dragging=false);
 
-// UPDATE GEOMETRY
-function updateWall(){
- if(!selectedWall) return;
- selectedWall.geometry.dispose();
- selectedWall.geometry = new THREE.BoxGeometry(
-   +len.value,
-   +ht.value,
-   +br.value
- );
- selectedWall.position.y = ht.value/2;
-}
-len.oninput = updateWall;
-br.oninput = updateWall;
-ht.oninput = updateWall;
-
-// VIEW MODES
+// ================= VIEW MODES =================
 function topView(){
- camera.position.set(0,25,0);
- camera.lookAt(0,0,0);
- controls.enableRotate = false;
+  camera.position.set(0,30,0);
+  camera.lookAt(0,0,0);
+  controls.enableRotate=false;
 }
 function freeView(){
- camera.position.set(20,15,20);
- camera.lookAt(0,0,0);
- controls.enableRotate = true;
+  camera.position.set(20,15,20);
+  camera.lookAt(0,0,0);
+  controls.enableRotate=true;
 }
 
-// LOOP
+// ================= WALK MODE =================
+const keys={};
+addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+// ================= SAVE / LOAD =================
+function saveLayout(){
+  const data = walls.map(w=>({
+    x:w.position.x,
+    z:w.position.z,
+    l:w.geometry.parameters.width,
+    h:w.geometry.parameters.height,
+    b:w.geometry.parameters.depth,
+    rot:THREE.MathUtils.radToDeg(w.rotation.y)
+  }));
+  localStorage.setItem("floorplan",JSON.stringify(data));
+  alert("Layout saved!");
+}
+function loadLayout(){
+  const data = JSON.parse(localStorage.getItem("floorplan")||"[]");
+  walls.forEach(w=>scene.remove(w));
+  walls=[];
+  data.forEach(d=>{
+    const w = createWall(d.l,d.h,d.b,d.x,d.z,d.rot);
+    if(!selectedWall) selectedWall=w;
+  });
+  updateWallSelect();
+  updateSliders();
+}
+
+// ================= ANIMATE =================
 function animate(){
- requestAnimationFrame(animate);
- controls.update();
- renderer.render(scene,camera);
+  requestAnimationFrame(animate);
+  // WASD move
+  if(controls.enableRotate){
+    if(keys.w) camera.position.z-=0.15;
+    if(keys.s) camera.position.z+=0.15;
+    if(keys.a) camera.position.x-=0.15;
+    if(keys.d) camera.position.x+=0.15;
+  }
+  controls.update();
+  renderer.render(scene,camera);
 }
 animate();
 
 addEventListener('resize',()=>{
- renderer.setSize(innerWidth,innerHeight);
- camera.aspect = innerWidth/innerHeight;
- camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
 });
 </script>
 
