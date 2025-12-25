@@ -3,61 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Floor Plan</title>
+    <title>3D Floor Plan - Interactive</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; background-color: #f0f0f0; }
         canvas { display: block; }
     </style>
 </head>
 <body>
     <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/examples/js/controls/OrbitControls.js"></script>
+
     <script>
-        // Scene setup
+        // 1. Scene & Camera Setup
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xdddddd);
+        
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
+        camera.position.set(10, 10, 10); // Angled bird's eye view
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Floor plan elements: Creating basic walls and floor
-        const floorGeometry = new THREE.BoxGeometry(10, 1, 10);
-        const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x777777 });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        // 2. Lights (Crucial for 3D depth)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add(directionalLight);
+
+        // 3. Materials
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+
+        // 4. Room Construction
+        // Floor
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 10), floorMat);
         scene.add(floor);
 
-        const wallGeometry = new THREE.BoxGeometry(10, 5, 1);
-        const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
-        
-        const wall1 = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall1.position.set(0, 2.5, -5);
-        scene.add(wall1);
+        // Helper function to create walls
+        function createWall(w, h, d, x, y, z, rotY = 0) {
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+            wall.position.set(x, y, z);
+            wall.rotation.y = rotY;
+            scene.add(wall);
+        }
 
-        const wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall2.rotation.y = Math.PI / 2;
-        wall2.position.set(5, 2.5, 0);
-        scene.add(wall2);
+        createWall(10, 3, 0.2, 0, 1.5, -5);      // Back wall
+        createWall(10, 3, 0.2, 0, 1.5, 5);       // Front wall
+        createWall(10, 3, 0.2, 5, 1.5, 0, Math.PI / 2);  // Right wall
+        createWall(10, 3, 0.2, -5, 1.5, 0, Math.PI / 2); // Left wall
 
-        const wall3 = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall3.rotation.y = Math.PI;
-        wall3.position.set(0, 2.5, 5);
-        scene.add(wall3);
+        // 5. Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
 
-        const wall4 = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall4.rotation.y = -Math.PI / 2;
-        wall4.position.set(-5, 2.5, 0);
-        scene.add(wall4);
-
-        // Camera positioning
-        camera.position.z = 15;
-
-        // Animation loop
+        // 6. Animation Loop
         function animate() {
             requestAnimationFrame(animate);
+            controls.update();
             renderer.render(scene, camera);
         }
         animate();
 
-        // Resize handling
+        // Resize Handling
         window.addEventListener('resize', () => {
             renderer.setSize(window.innerWidth, window.innerHeight);
             camera.aspect = window.innerWidth / window.innerHeight;
