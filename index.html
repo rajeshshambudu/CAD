@@ -1,257 +1,297 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Full 3D Floor Plan Editor</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-body {margin:0;overflow:hidden;font-family:Arial;background:#eee}
-#panel{
- position:fixed;right:10px;top:10px;
- background:#fff;padding:12px;border-radius:8px;
- box-shadow:0 0 10px rgba(0,0,0,.3);width:280px
-}
-label{font-size:13px}
-input,select{width:100%;margin-bottom:5px}
-button{width:100%;margin-top:5px}
-</style>
+    <meta charset="UTF-8">
+    <title>Pro Floor Plan Designer</title>
+    <style>
+        :root { --accent: #2196F3; --panel-bg: rgba(255, 255, 255, 0.95); }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #1a1a1a; }
+        
+        #ui-left { position: fixed; left: 15px; top: 15px; width: 280px; z-index: 100; }
+        #ui-right { position: fixed; right: 15px; top: 15px; width: 220px; z-index: 100; }
+        
+        .panel { 
+            background: var(--panel-bg); padding: 20px; border-radius: 12px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 15px;
+        }
+        
+        h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #444; }
+        label { font-size: 11px; font-weight: bold; color: #777; display: block; margin-top: 8px; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+        
+        button { 
+            width: 100%; padding: 10px; margin-top: 8px; border: none; border-radius: 6px;
+            background: #333; color: white; cursor: pointer; transition: 0.3s; font-weight: 600;
+        }
+        button:hover { background: var(--accent); transform: translateY(-1px); }
+        .btn-add { background: #4CAF50; }
+        .btn-render { background: #E91E63; }
+        
+        #render-output { 
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            border: 5px solid white; display: none; box-shadow: 0 0 50px rgba(0,0,0,0.5); max-height: 300px;
+        }
+    </style>
 </head>
 <body>
 
-<div id="panel">
-<b>Wall Editor</b><br><br>
-<label>Select Wall</label>
-<select id="wallSelect"></select>
-
-<label>Length</label>
-<input type="range" id="len" min="2" max="30" step="0.5">
-<label>Breadth (Thickness)</label>
-<input type="range" id="br" min="0.1" max="2" step="0.1">
-<label>Height</label>
-<input type="range" id="ht" min="1" max="6" step="0.2">
-<label>Rotation</label>
-<input type="range" id="rot" min="0" max="360" step="1">
-
-<button onclick="topView()">Top View</button>
-<button onclick="freeView()">3D Walk View</button>
-<hr>
-<button onclick="addWall()">Add Wall</button>
-<button onclick="deleteWall()">Delete Selected Wall</button>
-<button onclick="saveLayout()">Save Layout</button>
-<button onclick="loadLayout()">Load Layout</button>
-<p style="font-size:12px">🖱 Select & drag walls<br>⌨ WASD walk</p>
+<div id="ui-left">
+    <div class="panel">
+        <h3>Wall Editor</h3>
+        <label>Selected: <span id="wallName">None</span></label>
+        <label>Length (m)</label>
+        <input type="range" id="len" min="1" max="25" step="0.1">
+        <label>Height (m)</label>
+        <input type="range" id="ht" min="1" max="5" step="0.1">
+        <label>Rotation</label>
+        <input type="range" id="rot" min="0" max="360" step="1">
+        
+        <button class="btn-add" onclick="addWall()">+ New Wall</button>
+        <button style="background:#f44336" onclick="deleteWall()">Delete Wall</button>
+    </div>
+    
+    <div class="panel">
+        <h3>Layout</h3>
+        <button onclick="saveLayout()">💾 Save to Cloud</button>
+        <button onclick="loadLayout()">📂 Load Layout</button>
+        <button class="btn-render" onclick="renderHD()">📸 Export Render</button>
+    </div>
 </div>
+
+<div id="ui-right">
+    <div class="panel">
+        <h3>Furniture</h3>
+        <button onclick="addAsset('door')">🚪 Door</button>
+        <button onclick="addAsset('window')">🪟 Window</button>
+        <button onclick="addAsset('bed')">🛏️ King Bed</button>
+        <button onclick="addAsset('table')">🍽️ Table</button>
+    </div>
+    <div class="panel">
+        <h3>Camera</h3>
+        <button onclick="topView()">Blueprint (2D)</button>
+        <button onclick="freeView()">Perspective (3D)</button>
+    </div>
+</div>
+
+<img id="render-output">
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/examples/js/controls/OrbitControls.js"></script>
 
 <script>
-// ================= SCENE SETUP =================
+// --- CORE SETUP ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf2f2f2);
-const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
-camera.position.set(20,20,20);
-camera.lookAt(0,0,0);
+scene.background = new THREE.Color(0xf0f0f0);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(15, 15, 15);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-const controls = new THREE.OrbitControls(camera,renderer.domElement);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.enableRotate = false;
 
-// LIGHT
-scene.add(new THREE.AmbientLight(0xffffff,.8));
-const sun = new THREE.DirectionalLight(0xffffff,.6);
-sun.position.set(15,25,15);
-scene.add(sun);
+// --- ENVIRONMENT ---
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const light = new THREE.DirectionalLight(0xffffff, 0.8);
+light.position.set(10, 20, 10);
+light.castShadow = true;
+scene.add(light);
 
-// MATERIALS
-const floorMat = new THREE.MeshStandardMaterial({color:0xdcdcdc});
-const wallMat  = new THREE.MeshStandardMaterial({color:0xffffff});
-const doorMat  = new THREE.MeshStandardMaterial({color:0x8b5a2b});
-const winMat   = new THREE.MeshStandardMaterial({color:0x87ceeb, transparent:true, opacity:.6});
-const furnMat  = new THREE.MeshStandardMaterial({color:0x999999});
+// Floor
+const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(50, 50), 
+    new THREE.MeshStandardMaterial({ color: 0xeeeeee })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+scene.add(new THREE.GridHelper(50, 50, 0xcccccc, 0xdddddd));
 
-// FLOOR
-scene.add(new THREE.Mesh(new THREE.BoxGeometry(50,.2,50),floorMat));
-scene.add(new THREE.GridHelper(60,60));
-
-// ================= WALL MANAGEMENT =================
+// --- STATE ---
 let walls = [];
-let selectedWall = null;
+let assets = [];
+let selectedObj = null;
 
-// CREATE WALL
-function createWall(len,h,b,x=0,z=0,rot=0){
-  const geo = new THREE.BoxGeometry(len,h,b);
-  const wall = new THREE.Mesh(geo,wallMat);
-  wall.position.set(x,h/2,z);
-  wall.rotation.y = THREE.MathUtils.degToRad(rot);
-  scene.add(wall);
-  walls.push(wall);
-  updateWallSelect();
-  return wall;
+// --- WALL LOGIC ---
+function createWall(l, h, b, x, z, r) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(l, h, b), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    wall.position.set(x, h/2, z);
+    wall.rotation.y = THREE.MathUtils.degToRad(r);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    wall.userData.type = 'wall';
+    scene.add(wall);
+    walls.push(wall);
+    return wall;
 }
 
-// INITIAL WALLS
-createWall(20,3,.2,0,-10);
-createWall(20,3,.2,0,10);
-createWall(20,3,.2,10,0,90);
-createWall(20,3,.2,-10,0,90);
-
-// ================= WALL SELECT =================
-const wallSelect = document.getElementById("wallSelect");
-function updateWallSelect(){
-  wallSelect.innerHTML = "";
-  walls.forEach((w,i)=>{
-    const opt = document.createElement("option");
-    opt.value=i;
-    opt.text="Wall "+(i+1);
-    wallSelect.add(opt);
-  });
-  if(selectedWall===null && walls.length) selectedWall=walls[0];
-}
-wallSelect.addEventListener("change",()=>{
-  const idx = parseInt(wallSelect.value);
-  selectedWall = walls[idx];
-  updateSliders();
-});
-function updateSliders(){
-  if(!selectedWall) return;
-  const g = selectedWall.geometry.parameters;
-  len.value = g.width;
-  ht.value  = g.height;
-  br.value  = g.depth;
-  rot.value = THREE.MathUtils.radToDeg(selectedWall.rotation.y);
-}
-updateWallSelect();
-
-// ================= SLIDERS =================
-const len = document.getElementById("len");
-const br = document.getElementById("br");
-const ht = document.getElementById("ht");
-const rot = document.getElementById("rot");
-
-function updateWall(){
-  if(!selectedWall) return;
-  selectedWall.geometry.dispose();
-  selectedWall.geometry = new THREE.BoxGeometry(+len.value,+ht.value,+br.value);
-  selectedWall.position.y = +ht.value/2;
-  selectedWall.rotation.y = THREE.MathUtils.degToRad(+rot.value);
-}
-[len,br,ht,rot].forEach(s=>s.addEventListener("input",updateWall));
-
-// ================= ADD / DELETE WALL =================
-function addWall(){
-  const w = createWall(5,3,.2,0,0,0);
-  selectedWall = w;
-  updateSliders();
-}
-function deleteWall(){
-  if(!selectedWall) return;
-  scene.remove(selectedWall);
-  walls = walls.filter(w=>w!==selectedWall);
-  selectedWall = walls.length?walls[0]:null;
-  updateWallSelect();
-  updateSliders();
+function addWall() {
+    const w = createWall(5, 3, 0.2, 0, 0, 0);
+    select(w);
 }
 
-// ================= RAYCAST SELECT =================
-const ray = new THREE.Raycaster();
+// --- ASSET LOGIC ---
+function addAsset(type) {
+    let geo, mat, mesh;
+    switch(type) {
+        case 'door': 
+            geo = new THREE.BoxGeometry(1.2, 2.2, 0.25);
+            mat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            break;
+        case 'window':
+            geo = new THREE.BoxGeometry(1.5, 1.2, 0.25);
+            mat = new THREE.MeshStandardMaterial({ color: 0x87CEEB, transparent: true, opacity: 0.6 });
+            break;
+        case 'bed':
+            geo = new THREE.BoxGeometry(2, 0.6, 2.2);
+            mat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+            break;
+        case 'table':
+            geo = new THREE.BoxGeometry(1.5, 0.8, 1.5);
+            mat = new THREE.MeshStandardMaterial({ color: 0xdeb887 });
+            break;
+    }
+    mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = geo.parameters.height / 2 + (type === 'window' ? 1 : 0);
+    mesh.castShadow = true;
+    mesh.userData.type = 'furniture';
+    scene.add(mesh);
+    assets.push(mesh);
+    select(mesh);
+}
+
+// --- INTERACTION ---
+const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+let isDragging = false;
 
-addEventListener("mousedown",e=>{
-  mouse.x = (e.clientX/innerWidth)*2-1;
-  mouse.y = -(e.clientY/innerHeight)*2+1;
-  ray.setFromCamera(mouse,camera);
-  const hit = ray.intersectObjects(walls);
-  if(hit.length){
-    selectedWall = hit[0].object;
-    updateSliders();
-  }
+function select(obj) {
+    if (selectedObj) selectedObj.material.emissive.setHex(0x000000);
+    selectedObj = obj;
+    selectedObj.material.emissive.setHex(0x111111);
+    
+    document.getElementById('wallName').innerText = obj.userData.type.toUpperCase();
+    if (obj.geometry.type === "BoxGeometry") {
+        document.getElementById('len').value = obj.geometry.parameters.width;
+        document.getElementById('ht').value = obj.geometry.parameters.height;
+        document.getElementById('rot').value = THREE.MathUtils.radToDeg(obj.rotation.y);
+    }
+}
+
+// Raycasting for selection
+addEventListener('mousedown', (e) => {
+    mouse.x = (e.clientX / innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([...walls, ...assets]);
+    if (intersects.length > 0) {
+        select(intersects[0].object);
+        isDragging = true;
+        controls.enabled = false;
+    }
 });
 
-// DRAG WALL
-let dragging = false;
-addEventListener("mousemove",e=>{
-  if(!dragging || !selectedWall) return;
-  mouse.x = (e.clientX/innerWidth)*2-1;
-  mouse.y = -(e.clientY/innerHeight)*2+1;
-  ray.setFromCamera(mouse,camera);
-  const plane = new THREE.Plane(new THREE.Vector3(0,1,0),0);
-  const point = new THREE.Vector3();
-  ray.ray.intersectPlane(plane,point);
-  selectedWall.position.x = point.x;
-  selectedWall.position.z = point.z;
+addEventListener('mousemove', (e) => {
+    if (!isDragging || !selectedObj) return;
+    mouse.x = (e.clientX / innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const planeIntersect = new THREE.Vector3();
+    raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), planeIntersect);
+    selectedObj.position.x = planeIntersect.x;
+    selectedObj.position.z = planeIntersect.z;
 });
-addEventListener("mousedown",()=>dragging=true);
-addEventListener("mouseup",()=>dragging=false);
 
-// ================= VIEW MODES =================
-function topView(){
-  camera.position.set(0,30,0);
-  camera.lookAt(0,0,0);
-  controls.enableRotate=false;
-}
-function freeView(){
-  camera.position.set(20,15,20);
-  camera.lookAt(0,0,0);
-  controls.enableRotate=true;
-}
+addEventListener('mouseup', () => {
+    isDragging = false;
+    controls.enabled = true;
+});
 
-// ================= WALK MODE =================
-const keys={};
-addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
-addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
-
-// ================= SAVE / LOAD =================
-function saveLayout(){
-  const data = walls.map(w=>({
-    x:w.position.x,
-    z:w.position.z,
-    l:w.geometry.parameters.width,
-    h:w.geometry.parameters.height,
-    b:w.geometry.parameters.depth,
-    rot:THREE.MathUtils.radToDeg(w.rotation.y)
-  }));
-  localStorage.setItem("floorplan",JSON.stringify(data));
-  alert("Layout saved!");
+// Update Geometry from Sliders
+function updateFromUI() {
+    if (!selectedObj) return;
+    const l = +document.getElementById('len').value;
+    const h = +document.getElementById('ht').value;
+    const r = +document.getElementById('rot').value;
+    
+    selectedObj.geometry.dispose();
+    selectedObj.geometry = new THREE.BoxGeometry(l, h, selectedObj.geometry.parameters.depth || 0.2);
+    selectedObj.position.y = h / 2;
+    selectedObj.rotation.y = THREE.MathUtils.degToRad(r);
 }
-function loadLayout(){
-  const data = JSON.parse(localStorage.getItem("floorplan")||"[]");
-  walls.forEach(w=>scene.remove(w));
-  walls=[];
-  data.forEach(d=>{
-    const w = createWall(d.l,d.h,d.b,d.x,d.z,d.rot);
-    if(!selectedWall) selectedWall=w;
-  });
-  updateWallSelect();
-  updateSliders();
+document.querySelectorAll('input').forEach(i => i.addEventListener('input', updateFromUI));
+
+// --- MODES & EXPORT ---
+function topView() {
+    camera.position.set(0, 30, 0);
+    controls.enableRotate = false;
 }
 
-// ================= ANIMATE =================
-function animate(){
-  requestAnimationFrame(animate);
-  // WASD move
-  if(controls.enableRotate){
-    if(keys.w) camera.position.z-=0.15;
-    if(keys.s) camera.position.z+=0.15;
-    if(keys.a) camera.position.x-=0.15;
-    if(keys.d) camera.position.x+=0.15;
-  }
-  controls.update();
-  renderer.render(scene,camera);
+function freeView() {
+    camera.position.set(15, 15, 15);
+    controls.enableRotate = true;
+}
+
+function renderHD() {
+    renderer.render(scene, camera);
+    const img = document.getElementById('render-output');
+    img.src = renderer.domElement.toDataURL("image/png");
+    img.style.display = "block";
+    alert("Render generated! Right-click image to save.");
+}
+
+function deleteWall() {
+    if (!selectedObj) return;
+    scene.remove(selectedObj);
+    walls = walls.filter(w => w !== selectedObj);
+    assets = assets.filter(a => a !== selectedObj);
+    selectedObj = null;
+}
+
+// --- DATA PERSISTENCE ---
+function saveLayout() {
+    const data = {
+        walls: walls.map(w => ({ p: w.position, r: w.rotation.y, g: w.geometry.parameters })),
+        assets: assets.map(a => ({ p: a.position, r: a.rotation.y, g: a.geometry.parameters, color: a.material.color.getHex() }))
+    };
+    localStorage.setItem('floorPlanPro', JSON.stringify(data));
+    alert("Design Saved!");
+}
+
+function loadLayout() {
+    const data = JSON.parse(localStorage.getItem('floorPlanPro'));
+    if (!data) return;
+    [...walls, ...assets].forEach(o => scene.remove(o));
+    walls = []; assets = [];
+    data.walls.forEach(d => {
+        const w = createWall(d.g.width, d.g.height, d.g.depth, d.p.x, d.p.z, THREE.MathUtils.radToDeg(d.r));
+    });
+    alert("Layout Loaded!");
+}
+
+// --- ANIMATION LOOP ---
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
 }
 animate();
 
-addEventListener('resize',()=>{
-  renderer.setSize(innerWidth,innerHeight);
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
+window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
 });
-</script>
 
+// Initialize with a simple room
+createWall(10, 3, 0.2, 0, -5, 0);
+createWall(10, 3, 0.2, 0, 5, 0);
+createWall(10, 3, 0.2, -5, 0, 90);
+createWall(10, 3, 0.2, 5, 0, 90);
+
+</script>
 </body>
 </html>
-
