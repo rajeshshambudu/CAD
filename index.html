@@ -2,41 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Editable 3D Floor Plan</title>
+<title>Editable 3D Floor Plan (Wall Dimensions)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { margin:0; overflow:hidden; font-family:Arial; background:#eee; }
-#panel {
-  position:fixed;
-  right:10px;
-  top:10px;
-  background:#fff;
-  padding:12px;
-  border-radius:8px;
-  width:220px;
-  box-shadow:0 0 10px rgba(0,0,0,.3);
+body{margin:0;overflow:hidden;font-family:Arial;background:#eee}
+#panel{
+ position:fixed;right:10px;top:10px;
+ background:#fff;padding:12px;border-radius:8px;
+ box-shadow:0 0 10px rgba(0,0,0,.3);width:260px
 }
-label { font-size:13px; }
-input { width:100%; }
+label{font-size:13px}
+input{width:100%}
+button{width:100%;margin-top:5px}
 </style>
 </head>
 <body>
 
 <div id="panel">
-<b>Wall Controls</b><br><br>
+<b>Selected Wall Editor</b><br><br>
 
-<label>Wall Length</label>
-<input type="range" min="5" max="25" value="20" id="wallLength">
+<label>Length</label>
+<input type="range" id="len" min="2" max="30" step="0.5">
 
-<label>Wall Height</label>
-<input type="range" min="2" max="6" value="3" id="wallHeight">
+<label>Breadth (Thickness)</label>
+<input type="range" id="br" min="0.1" max="2" step="0.1">
 
-<label>Wall Thickness</label>
-<input type="range" min="0.1" max="1" step="0.1" value="0.2" id="wallThickness">
+<label>Height</label>
+<input type="range" id="ht" min="1" max="6" step="0.2">
 
-<hr>
 <button onclick="topView()">Top View</button>
 <button onclick="freeView()">3D View</button>
+
+<p style="font-size:12px">
+🖱 Click wall to select<br>
+🟦 Drag to move
+</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
@@ -45,135 +45,135 @@ input { width:100%; }
 <script>
 // ================= SCENE =================
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf0f0f0);
+scene.background = new THREE.Color(0xf2f2f2);
 
 // CAMERA
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);
 camera.position.set(0,25,0);
 camera.lookAt(0,0,0);
 
 // RENDERER
 const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // CONTROLS
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+const controls = new THREE.OrbitControls(camera,renderer.domElement);
 controls.enableRotate = false;
+controls.enableDamping = true;
 
-// LIGHTS
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
-const sun = new THREE.DirectionalLight(0xffffff,0.6);
+// LIGHT
+scene.add(new THREE.AmbientLight(0xffffff,.8));
+const sun = new THREE.DirectionalLight(0xffffff,.6);
 sun.position.set(10,20,10);
 scene.add(sun);
 
 // MATERIALS
-const floorMat = new THREE.MeshStandardMaterial({color:0xd6d6d6});
-const wallMat  = new THREE.MeshStandardMaterial({color:0xffffff});
-const doorMat  = new THREE.MeshStandardMaterial({color:0x8b5a2b});
-const winMat   = new THREE.MeshStandardMaterial({color:0x87ceeb, transparent:true, opacity:.6});
-const furnMat  = new THREE.MeshStandardMaterial({color:0x999999});
+const floorMat = new THREE.MeshStandardMaterial({color:0xdcdcdc});
+const wallMat = new THREE.MeshStandardMaterial({color:0xffffff});
 
 // FLOOR
-const floor = new THREE.Mesh(new THREE.BoxGeometry(25,.2,18), floorMat);
-scene.add(floor);
+scene.add(new THREE.Mesh(new THREE.BoxGeometry(40,.2,30),floorMat));
 
-// WALL GROUP (editable)
-const wallGroup = new THREE.Group();
-scene.add(wallGroup);
+// GRID
+scene.add(new THREE.GridHelper(50,50));
 
-// FUNCTION: CREATE WALL
-function makeWall(w,h,t,x,y,z,r=0){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,t), wallMat);
-  m.position.set(x,y,z);
-  m.rotation.y = r;
-  wallGroup.add(m);
+// WALL STORAGE
+const walls = [];
+let selectedWall = null;
+
+// CREATE WALL
+function createWall(l,h,b,x,z,rot=0){
+ const geo = new THREE.BoxGeometry(l,h,b);
+ const wall = new THREE.Mesh(geo,wallMat);
+ wall.position.set(x,h/2,z);
+ wall.rotation.y = rot;
+ scene.add(wall);
+ walls.push(wall);
 }
 
 // INITIAL WALLS
-function buildWalls(){
-  wallGroup.clear();
+createWall(20,3,.2,0,-10);
+createWall(20,3,.2,0,10);
+createWall(20,3,.2,10,0,Math.PI/2);
+createWall(20,3,.2,-10,0,Math.PI/2);
+createWall(6,3,.2,-6,0,Math.PI/2);
+createWall(6,3,.2,-4,-4);
+createWall(6,3,.2,3,-4);
+createWall(4,3,.2,7,2,Math.PI/2);
 
-  const L = +wallLength.value;
-  const H = +wallHeight.value;
-  const T = +wallThickness.value;
+// RAYCAST
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
 
-  // outer
-  makeWall(L,H,T,0,H/2,-9);
-  makeWall(L,H,T,0,H/2,9);
-  makeWall(18,H,T,L/2,H/2,0,Math.PI/2);
-  makeWall(18,H,T,-L/2,H/2,0,Math.PI/2);
+// SELECT WALL
+addEventListener('mousedown',e=>{
+ mouse.x=(e.clientX/innerWidth)*2-1;
+ mouse.y=-(e.clientY/innerHeight)*2+1;
+ ray.setFromCamera(mouse,camera);
+ const hit = ray.intersectObjects(walls);
+ if(hit.length){
+   selectedWall = hit[0].object;
+   const g = selectedWall.geometry.parameters;
+   len.value = g.width;
+   ht.value  = g.height;
+   br.value  = g.depth;
+ }
+});
 
-  // inner rooms
-  makeWall(6,H,T,-6,H/2,0,Math.PI/2);
-  makeWall(6,H,T,-4,H/2,-4);
-  makeWall(6,H,T,3,H/2,-4);
-  makeWall(4,H,T,7,H/2,2,Math.PI/2);
+// DRAG WALL
+addEventListener('mousemove',e=>{
+ if(!selectedWall) return;
+ mouse.x=(e.clientX/innerWidth)*2-1;
+ mouse.y=-(e.clientY/innerHeight)*2+1;
+ ray.setFromCamera(mouse,camera);
+ const plane = new THREE.Plane(new THREE.Vector3(0,1,0),0);
+ const pos = new THREE.Vector3();
+ ray.ray.intersectPlane(plane,pos);
+ selectedWall.position.x = pos.x;
+ selectedWall.position.z = pos.z;
+});
+addEventListener('mouseup',()=>selectedWall=null);
+
+// UPDATE GEOMETRY
+function updateWall(){
+ if(!selectedWall) return;
+ selectedWall.geometry.dispose();
+ selectedWall.geometry = new THREE.BoxGeometry(
+   +len.value,
+   +ht.value,
+   +br.value
+ );
+ selectedWall.position.y = ht.value/2;
 }
-
-// DOORS
-function door(x,z){
-  const d = new THREE.Mesh(new THREE.BoxGeometry(1,2,0.1), doorMat);
-  d.position.set(x,1,z);
-  scene.add(d);
-}
-door(-6,-1); door(-2,-4); door(3,-4); door(6,4);
-
-// WINDOWS
-function win(x,z){
-  const w = new THREE.Mesh(new THREE.BoxGeometry(2,1,0.1), winMat);
-  w.position.set(x,2.3,z);
-  scene.add(w);
-}
-win(0,-9); win(-9,0); win(9,0);
-
-// FURNITURE
-function furn(w,h,d,x,y,z){
-  const f = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), furnMat);
-  f.position.set(x,y,z);
-  scene.add(f);
-}
-furn(3,.5,2,-6,.25,-2);
-furn(2,.5,1,-2,.25,-2);
-furn(3,.5,2,2,.25,2);
-furn(1.5,.8,1,6,.4,3);
-
-// GRID
-scene.add(new THREE.GridHelper(40,40));
-
-// BUILD FIRST TIME
-buildWalls();
-
-// SLIDER EVENTS
-wallLength.oninput = buildWalls;
-wallHeight.oninput = buildWalls;
-wallThickness.oninput = buildWalls;
+len.oninput = updateWall;
+br.oninput = updateWall;
+ht.oninput = updateWall;
 
 // VIEW MODES
 function topView(){
-  camera.position.set(0,25,0);
-  camera.lookAt(0,0,0);
-  controls.enableRotate = false;
+ camera.position.set(0,25,0);
+ camera.lookAt(0,0,0);
+ controls.enableRotate = false;
 }
 function freeView(){
-  camera.position.set(15,15,15);
-  camera.lookAt(0,0,0);
-  controls.enableRotate = true;
+ camera.position.set(20,15,20);
+ camera.lookAt(0,0,0);
+ controls.enableRotate = true;
 }
 
 // LOOP
 function animate(){
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene,camera);
+ requestAnimationFrame(animate);
+ controls.update();
+ renderer.render(scene,camera);
 }
 animate();
 
 addEventListener('resize',()=>{
-  renderer.setSize(innerWidth,innerHeight);
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+ camera.aspect = innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
 });
 </script>
 
