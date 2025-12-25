@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Floor Plan</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.130.1/build/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Floor plan elements: Creating basic walls and floor
+        const floorGeometry = new THREE.BoxGeometry(10, 1, 10);
+        const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x777777 });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        scene.add(floor);
+
+        const wallGeometry = new THREE.BoxGeometry(10, 5, 1);
+        const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
+        
+        const wall1 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall1.position.set(0, 2.5, -5);
+        scene.add(wall1);
+
+        const wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall2.rotation.y = Math.PI / 2;
+        wall2.position.set(5, 2.5, 0);
+        scene.add(wall2);
+
+        const wall3 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall3.rotation.y = Math.PI;
+        wall3.position.set(0, 2.5, 5);
+        scene.add(wall3);
+
+        const wall4 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall4.rotation.y = -Math.PI / 2;
+        wall4.position.set(-5, 2.5, 0);
+        scene.add(wall4);
+
+        // Camera positioning
+        camera.position.z = 15;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Resize handling
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+    </script>
+</body>
+</html>
